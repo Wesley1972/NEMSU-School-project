@@ -19,9 +19,15 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'first_name',
+        'last_name',
+        'address',
         'email',
         'password',
+        'role',
+        'points',
+        'total_points_earned',
+        'points_redeemed',
     ];
 
     /**
@@ -45,5 +51,17 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    // A User can have many schedules
+    public function schedules()
+    {
+        return $this->hasMany(Schedule::class);
+    }
+
+    // A User can have many incident reports
+    public function reports()
+    {
+        return $this->hasMany(Report::class);
     }
 }

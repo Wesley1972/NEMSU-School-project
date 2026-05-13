@@ -77,37 +77,98 @@
                 <p class="mb-0 text-light opacity-75">Today's Date: {{ \Carbon\Carbon::now()->format('l, F j, Y') }}</p>
             </div>
 
-            <!-- Reward Rates Configuration Panel -->
-            <div class="bg-dark bg-opacity-25 p-2 px-3 rounded-3 border border-light border-opacity-10 shadow-sm">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                    <small class="fw-bold text-warning text-uppercase"
-                        style="font-size: 0.7rem; letter-spacing: 1px;">⚙️ Reward Rates (Per Kg)</small>
+            <!-- Group the 3 panels together in a flex container to keep them on the same line -->
+            <div class="d-flex align-items-center flex-wrap gap-3">
+                <!-- Conversion Rate Form -->
+                <div class="bg-dark bg-opacity-25 p-2 px-3 rounded-3 border border-light border-opacity-10 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="fw-bold text-success text-uppercase"
+                            style="font-size: 0.7rem; letter-spacing: 1px;">💱 Conversion Rate</small>
+                    </div>
+
+                    <form action="{{ route('operator.updateConversion') }}" method="POST"
+                        class="d-flex align-items-center gap-2">
+                        @csrf
+                        <div class="input-group input-group-sm" style="width: 120px;">
+                            <input type="number" name="points_amount" class="form-control border-0 text-center fw-bold"
+                                value="{{ $pointsAmount ?? 100 }}" min="1" step="1" required>
+                            <span class="input-group-text bg-white text-muted border-0"
+                                style="font-size: 0.7rem;">pts</span>
+                        </div>
+
+                        <span class="text-white fw-bold mx-1">=</span>
+
+                        <div class="input-group input-group-sm" style="width: 120px;">
+                            <span class="input-group-text bg-success text-white fw-bold border-0"
+                                style="font-size: 0.8rem;">₱</span>
+                            <input type="number" name="peso_equivalent"
+                                class="form-control border-0 text-center fw-bold" value="{{ $pesoEquivalent ?? 1 }}"
+                                min="0" step="1" required>
+                        </div>
+
+                        <button type="submit" class="btn btn-sm btn-success fw-bold rounded-pill px-3 shadow-sm"
+                            style="font-size: 0.8rem;">Save</button>
+                    </form>
                 </div>
 
-                <form action="{{ route('operator.rates') }}" method="POST" class="d-flex align-items-center gap-2">
-                    @csrf
-                    <div class="input-group input-group-sm" style="width: 140px;">
-                        <span class="input-group-text bg-info text-dark fw-bold border-0"
-                            style="font-size: 0.8rem;">Plastic</span>
-                        <input type="number" name="plastic_rate" class="form-control border-0 text-center fw-bold"
-                            value="{{ $plasticRate }}" min="0" step="1">
-                        <span class="input-group-text bg-white text-muted border-0"
-                            style="font-size: 0.7rem;">pts</span>
+                <!-- Report Reward Configuration Panel -->
+                <div class="bg-dark bg-opacity-25 p-2 px-3 rounded-3 border border-light border-opacity-10 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="fw-bold text-danger text-uppercase"
+                            style="font-size: 0.7rem; letter-spacing: 1px;">🚨
+                            Report Reward</small>
                     </div>
 
-                    <div class="input-group input-group-sm" style="width: 140px;">
-                        <span class="input-group-text bg-secondary text-white fw-bold border-0"
-                            style="font-size: 0.8rem;">Metal</span>
-                        <input type="number" name="metal_rate" class="form-control border-0 text-center fw-bold"
-                            value="{{ $metalRate }}" min="0" step="1">
-                        <span class="input-group-text bg-white text-muted border-0"
-                            style="font-size: 0.7rem;">pts</span>
+                    <form action="{{ route('operator.reportRate') }}" method="POST"
+                        class="d-flex align-items-center gap-2">
+                        @csrf
+                        <div class="input-group input-group-sm" style="width: 140px;">
+                            <span class="input-group-text bg-danger text-white fw-bold border-0"
+                                style="font-size: 0.8rem;">Incident</span>
+                            <input type="number" name="report_rate" class="form-control border-0 text-center fw-bold"
+                                value="{{ $reportRate ?? 50 }}" min="0" step="1">
+                            <span class="input-group-text bg-white text-muted border-0"
+                                style="font-size: 0.7rem;">pts</span>
+                        </div>
+
+                        <button type="submit" class="btn btn-sm btn-danger fw-bold rounded-pill px-3 shadow-sm"
+                            style="font-size: 0.8rem;">Save</button>
+                    </form>
+                </div>
+
+                <!-- Reward Rates Configuration Panel -->
+                <div class="bg-dark bg-opacity-25 p-2 px-3 rounded-3 border border-light border-opacity-10 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="fw-bold text-warning text-uppercase"
+                            style="font-size: 0.7rem; letter-spacing: 1px;">⚙️ Reward Rates (Per Kg)</small>
                     </div>
 
-                    <button type="submit" class="btn btn-sm btn-warning fw-bold rounded-pill px-3 shadow-sm"
-                        style="font-size: 0.8rem;">Save</button>
-                </form>
+                    <form action="{{ route('operator.rates') }}" method="POST" class="d-flex align-items-center gap-2">
+                        @csrf
+                        <div class="input-group input-group-sm" style="width: 140px;">
+                            <span class="input-group-text bg-info text-dark fw-bold border-0"
+                                style="font-size: 0.8rem;">Plastic</span>
+                            <input type="number" name="plastic_rate" class="form-control border-0 text-center fw-bold"
+                                value="{{ $plasticRate }}" min="0" step="1">
+                            <span class="input-group-text bg-white text-muted border-0"
+                                style="font-size: 0.7rem;">pts</span>
+                        </div>
+
+                        <div class="input-group input-group-sm" style="width: 140px;">
+                            <span class="input-group-text bg-secondary text-white fw-bold border-0"
+                                style="font-size: 0.8rem;">Metal</span>
+                            <input type="number" name="metal_rate" class="form-control border-0 text-center fw-bold"
+                                value="{{ $metalRate }}" min="0" step="1">
+                            <span class="input-group-text bg-white text-muted border-0"
+                                style="font-size: 0.7rem;">pts</span>
+                        </div>
+
+                        <button type="submit" class="btn btn-sm btn-warning fw-bold rounded-pill px-3 shadow-sm"
+                            style="font-size: 0.8rem;">Save</button>
+                    </form>
+                </div>
             </div>
+            <!-- End Panel Group -->
 
         </div>
     </header>
@@ -160,7 +221,16 @@
                             </a>
                         </div>
                     @endif
-                </form>
+
+                </form><br>
+
+                <div class="col-auto">
+                    <a href="{{ route('rewardPage', ['user_id' => request('user_id')]) }}"
+                        class="btn btn-success rounded-pill px-4 shadow-sm fw-bold">
+                        🏆 Reward Page
+                    </a>
+                </div>
+
             </div>
 
             @if (request('user_id') && isset($selectedUser))
@@ -238,17 +308,12 @@
                 <div class="card stat-card p-3 bg-white">
                     <div class="d-flex justify-content-between align-items-center">
 
-
-
                         <div>
                             <h6 class="text-muted mb-1 fw-bold">
                                 {{ request('view') == 'completed' ? 'Completed Pickups' : 'Pending Pickups' }}
                             </h6>
                             <h3 class="fw-bold text-success mb-0">{{ $schedules->count() }}</h3>
                         </div>
-
-
-
 
                         <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success fs-4">🚛</div>
                     </div>
@@ -364,13 +429,38 @@
                                 class="list-group-item p-3 bg-light rounded-3 mb-3 border-start {{ $report->is_hazardous ? 'border-danger' : 'border-info' }} border-4 d-flex justify-content-between align-items-center">
 
                                 <div style="flex: 1;">
-                                    <div class="mb-2">
+                                    <div class="mb-2 d-flex align-items-center gap-2">
                                         @if ($report->is_hazardous)
                                             <span class="badge bg-danger rounded-pill">⚠️ Hazardous</span>
                                         @else
                                             <span
                                                 class="badge bg-info text-dark rounded-pill">{{ ucwords(str_replace('_', ' ', $report->incident_type)) }}</span>
                                         @endif
+
+
+
+
+
+
+
+
+                                        {{-- <!-- NEW: Report Reward Points Badge -->
+                                        <span class="badge border border-success text-success">
+                                            +{{ $reportRate ?? 50 }} pts
+                                        </span> --}}
+
+                                        <!-- NEW: Report Reward Points Badge -->
+                                        <span class="badge border border-success text-success">
+                                            +{{ $report->status === 'resolved' ? $report->points_awarded ?? 0 : $reportRate ?? 50 }}
+                                            pts
+                                        </span>
+
+
+
+
+
+
+
                                     </div>
                                     <h6 class="fw-bold text-dark mb-1">{{ $report->user->first_name ?? 'Resident' }}
                                         reported:</h6>
@@ -388,14 +478,9 @@
                                             <div class="rounded border shadow-sm bg-white d-flex align-items-center justify-content-center mx-auto mb-1"
                                                 style="width: 50px; height: 50px; overflow: hidden; transition: transform 0.2s;">
 
-
-
                                                 <img src="{{ asset('storage/' . $report->photo_path) }}"
                                                     alt="Report Photo"
                                                     style="width: 100%; height: 100%; object-fit: cover;">
-
-                                                    
-
                                             </div>
                                             <small class="fw-bold text-primary" style="font-size: 0.7rem;">View
                                                 Photo</small>

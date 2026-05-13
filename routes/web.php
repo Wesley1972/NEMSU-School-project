@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\OperatorController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Models\User;
@@ -9,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\Schedule;
 use App\Models\Report;
 use Illuminate\Support\Facades\Cache;
+use App\Models\Redemption;
 
 // 4. Processes the new password and updates the database
 Route::post('/reset-password', [PasswordResetController::class, 'reset'])
@@ -18,7 +20,6 @@ Route::post('/reset-password', [PasswordResetController::class, 'reset'])
 Route::get('/reset-password/{token}', [PasswordResetController::class, 'showResetForm'])
     ->middleware('guest')
     ->name('password.reset');
-
 
 // 1. Shows the Forgot Password page when the user clicks the link
 Route::get('/forgot-password', function () {
@@ -197,8 +198,27 @@ Route::get('report', function () {
 })->name('report');
 
 Route::get('/earn', function () {
-    $schedules = Auth::user()->schedules()->where('status', 'completed')->latest()->get();
-    return view('earn', compact('schedules'));
+    $schedules = Auth::user()->schedules()->latest()->get();
+    $redemptions = Auth::user()->redemptions()->latest()->get();
+
+    // NEW: Fetch the user's incident reports
+    $reports = Auth::user()->reports()->latest()->get();
+
+    // Fetch Settings and Cache Rates
+    $pointsAmount = \App\Models\Setting::where('key', 'conversion_points_amount')->value('value') ?? 100;
+    $pesoEquivalent = \App\Models\Setting::where('key', 'conversion_peso_equivalent')->value('value') ?? 1;
+
+    // NEW: Fetch the report reward rate (defaults to 50 if not set)
+    $reportRate = \Illuminate\Support\Facades\Cache::get('report_rate', 50);
+
+    return view('earn', compact(
+        'schedules',
+        'redemptions',
+        'reports',
+        'pointsAmount',
+        'pesoEquivalent',
+        'reportRate'
+    ));
 })->middleware('auth')->name('earn');
 
 Route::get('/login', function () {
@@ -233,17 +253,11 @@ Route::get('/operator-dashboard', function (Illuminate\Http\Request $request) {
 
         $selectedUser = User::find($selectedUserId);
 
-        // if ($selectedUser) {
-        //     $selectedUser->total_points_earned = $selectedUser->schedules()
-        //         ->where('status', 'completed')
-        //         ->sum('points_earned');
-
-        //     $selectedUser->points_redeemed = max(0, $selectedUser->total_points_earned - ($selectedUser->points ?? 0));
-        // }
     }
 
     $plasticRate = Cache::get('plastic_rate', 10);
     $metalRate = Cache::get('metal_rate', 15);
+    $reportRate = Cache::get('report_rate', 50);
 
     return view('operator-dashboard', [
         'schedules' => $schedulesQuery->latest()->get(),
@@ -253,6 +267,7 @@ Route::get('/operator-dashboard', function (Illuminate\Http\Request $request) {
         'selectedUser' => $selectedUser,
         'plasticRate' => $plasticRate,
         'metalRate' => $metalRate,
+        'reportRate' => $reportRate,
     ]);
 })->middleware('auth')->name('operator.dashboard');
 
@@ -296,25 +311,151 @@ Route::post('/schedule/{id}/complete', function ($id) {
 
 Route::post('/report/{id}/resolve', function ($id) {
     $report = Report::findOrFail($id);
-    $report->update(['status' => 'resolved']);
 
-    return back()->with('status', 'Incident report marked as resolved!');
+    // Prevent double rewarding if already resolved
+    if ($report->status === 'resolved') {
+        return back();
+    }
+
+    // 1. Fetch the current reward rate from Cache
+    $currentRate = Cache::get('report_rate', 50);
+
+    // 2. Update the report: Mark as resolved AND save the point snapshot
+    $report->update([
+        'status' => 'resolved',
+        'points_awarded' => $currentRate // This freezes the rate for this record
+    ]);
+
+    // 3. Award the frozen amount to the user
+    if ($report->user && $currentRate > 0) {
+        $report->user->increment('points', $currentRate);
+        $report->user->increment('total_points_earned', $currentRate);
+    }
+
+    return back()->with('status', "Incident resolved! $currentRate points awarded to the resident.");
 })->middleware('auth')->name('report.resolve');
 
 Route::post('/redeem-points', function (Request $request) {
+    /** @var \App\Models\User $user */
     $user = Auth::user();
+
     $amountToRedeem = (int) $request->input('amount');
+    $paymentMethod = $request->input('payment_method', 'Cash');
 
     if ($amountToRedeem <= 0 || $amountToRedeem > $user->points) {
         return response()->json(['success' => false, 'message' => 'Invalid amount or insufficient points.']);
     }
 
+    // 1. Deduct points
     $user->points -= $amountToRedeem;
     $user->points_redeemed += $amountToRedeem;
     $user->save();
+
+    // 2. Save the redemption record
+    $redemption = $user->redemptions()->create([
+        'amount' => $amountToRedeem,
+        'payment_method' => $paymentMethod,
+    ]);
+
+    // 3. Calculate cash value to send to the Javascript frontend instantly
+    $pointsAmount = \App\Models\Setting::where('key', 'conversion_points_amount')->value('value') ?? 100;
+    $pesoEquivalent = \App\Models\Setting::where('key', 'conversion_peso_equivalent')->value('value') ?? 1;
+    $cashValue = number_format(($amountToRedeem / $pointsAmount) * $pesoEquivalent, 2);
+
+    return response()->json([
+        'success' => true,
+        'new_balance' => $user->points,
+        'redemption_id' => $redemption->id,
+        'cash_value' => $cashValue // Send this to Javascript
+    ]);
+})->middleware('auth')->name('rewards.redeem');
+
+// User Cancel Redemption Route
+Route::post('/redeem-points/cancel/{id}', function ($id) {
+    /** @var \App\Models\User $user */
+    $user = Auth::user();
+
+    $redemption = $user->redemptions()->find($id);
+
+    if (!$redemption) {
+        return response()->json(['success' => false, 'message' => 'Redemption not found.']);
+    }
+
+    // NEW: Security Check - Prevent canceling if already completed
+    if ($redemption->status !== 'pending') {
+        return response()->json(['success' => false, 'message' => 'Cannot cancel a confirmed redemption.']);
+    }
+
+    // Restore the points
+    $user->points += $redemption->amount;
+    $user->points_redeemed -= $redemption->amount;
+    $user->save();
+
+    $redemption->delete();
 
     return response()->json([
         'success' => true,
         'new_balance' => $user->points
     ]);
-})->middleware('auth')->name('rewards.redeem');
+})->middleware('auth')->name('rewards.cancel');
+
+// NEW: Admin Custom Reward Route
+Route::post('/rewards/{id}/custom', function (Request $request, $id) {
+    // Make sure only operators can issue custom rewards
+    if (Auth::user()->role !== 'operator') {
+        abort(403);
+    }
+
+    $request->validate([
+        'custom_reward' => 'required|string|max:255',
+    ]);
+
+    $redemption = Redemption::findOrFail($id);
+
+    // Update the database record
+    $redemption->custom_reward = $request->custom_reward;
+    $redemption->status = 'completed'; // Mark as completed since the custom reward was given
+    $redemption->save();
+
+    return back()->with('status', 'Custom reward saved and marked as completed!');
+})->middleware('auth')->name('rewards.custom');
+
+Route::post('/redeem-points/confirm/{id}', function ($id) {
+    // Make sure only operators can confirm
+    if (Auth::user()->role !== 'operator') {
+        abort(403);
+    }
+
+    $redemption = Redemption::findOrFail($id);
+    $redemption->update(['status' => 'completed']);
+
+    return back()->with('status', 'Redemption successfully confirmed!');
+})->middleware('auth')->name('rewards.confirm');
+
+Route::get('/admin/rewardPage', function (Request $request) {
+    $selectedUser = null;
+
+    if ($request->has('user_id') && $request->user_id != '') {
+        $selectedUser = User::find($request->user_id);
+    }
+
+    // 1. Fetch Conversion Settings
+    $pointsAmount = \App\Models\Setting::where('key', 'conversion_points_amount')->value('value') ?? 100;
+    $pesoEquivalent = \App\Models\Setting::where('key', 'conversion_peso_equivalent')->value('value') ?? 1;
+
+    // 2. Pass them to the view
+    return view('admin-reward-page', compact('selectedUser', 'pointsAmount', 'pesoEquivalent'));
+})->name('rewardPage');
+
+Route::post('/operator/conversion-rate', [OperatorController::class, 'updateConversionRate'])
+    ->name('operator.updateConversion');
+
+Route::post('/operator/report-rate', function (Request $request) {
+    $request->validate([
+        'report_rate' => 'required|numeric|min:0',
+    ]);
+
+    Cache::forever('report_rate', $request->report_rate);
+
+    return back()->with('status', 'Incident report reward rate successfully updated!');
+})->middleware('auth')->name('operator.reportRate');

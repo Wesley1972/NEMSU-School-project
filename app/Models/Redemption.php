@@ -5,18 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Report extends Model
+class Redemption extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'photo_path',
-        'location',
-        'incident_type',
-        'is_hazardous',
-        'notes',
+        'user_id',
+        'amount',
+        'payment_method',
         'status',
-        'points_awarded',
     ];
 
     public function user()

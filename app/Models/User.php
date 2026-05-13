@@ -64,4 +64,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(Report::class);
     }
+
+    // Add this method inside your User class
+    public function redemptions()
+    {
+        return $this->hasMany(Redemption::class);
+    }
 }

@@ -459,3 +459,9 @@ Route::post('/operator/report-rate', function (Request $request) {
 
     return back()->with('status', 'Incident report reward rate successfully updated!');
 })->middleware('auth')->name('operator.reportRate');
+
+
+// git init
+// git add .
+// git commit -m "New stuff added."
+// git push -u origin main
